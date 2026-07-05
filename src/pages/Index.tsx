@@ -227,6 +227,14 @@ export default function Index() {
                   >
                     <AlertTriangle className="h-4 w-4" /> Missing tags only
                   </Button>
+                  <Button
+                    size="sm"
+                    onClick={runLookup}
+                    disabled={incompleteCount === 0}
+                    title="Query MusicBrainz for tracks with missing artist/title/album"
+                  >
+                    <Wand2 className="h-4 w-4" /> Fetch missing tags ({incompleteCount})
+                  </Button>
                   <Button variant="ghost" size="sm" onClick={clearAll} className="text-muted-foreground hover:text-destructive">
                     <Trash2 className="h-4 w-4" /> Clear
                   </Button>
