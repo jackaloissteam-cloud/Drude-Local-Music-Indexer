@@ -130,6 +130,39 @@ export default function Index() {
     toast.success(`Kept ${best.filename}, removed ${toRemove.length}`);
   };
 
+  const [lookupOpen, setLookupOpen] = useState(false);
+  const [lookupProgress, setLookupProgress] = useState<LookupProgress | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
+
+  const runLookup = async () => {
+    const targets = lib.tracks.filter((t) => !isTrackComplete(t));
+    if (targets.length === 0) {
+      toast.info("No tracks with missing tags.");
+      return;
+    }
+    const ctrl = new AbortController();
+    abortRef.current = ctrl;
+    setLookupOpen(true);
+    setLookupProgress({ done: 0, total: targets.length, updated: 0, failed: 0 });
+    try {
+      const patches = await lookupMissing(targets, setLookupProgress, 85, ctrl.signal);
+      setLib((l) => ({
+        ...l,
+        tracks: l.tracks.map((t) => (patches.has(t.id) ? { ...t, ...patches.get(t.id) } : t)),
+      }));
+      toast.success(`Updated ${patches.size} of ${targets.length} tracks from MusicBrainz`);
+    } catch (e) {
+      toast.error(`Lookup failed: ${(e as Error).message}`);
+    } finally {
+      abortRef.current = null;
+    }
+  };
+
+  const cancelLookup = () => {
+    abortRef.current?.abort();
+    abortRef.current = null;
+  };
+
   return (
     <div className="min-h-screen bg-background text-foreground">
       <header className="border-b border-border">
