@@ -268,6 +268,36 @@ export default function Index() {
 
       <TagEditor track={editing} onClose={() => setEditing(null)} onSave={(patch) => { if (editing) updateTrack(editing.id, patch); setEditing(null); }} />
 
+      <Dialog open={lookupOpen} onOpenChange={(o) => { if (!o) { cancelLookup(); setLookupOpen(false); } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="font-serif flex items-center gap-2"><Wand2 className="h-5 w-5 text-primary" /> Fetching tags from MusicBrainz</DialogTitle>
+          </DialogHeader>
+          {lookupProgress && (
+            <div className="space-y-3">
+              <Progress value={lookupProgress.total ? (lookupProgress.done / lookupProgress.total) * 100 : 0} />
+              <div className="flex justify-between text-xs font-mono text-muted-foreground">
+                <span>{lookupProgress.done} / {lookupProgress.total}</span>
+                <span>updated {lookupProgress.updated} · failed {lookupProgress.failed}</span>
+              </div>
+              {lookupProgress.currentTitle && (
+                <div className="text-sm truncate">
+                  <span className="text-muted-foreground">Now: </span>{lookupProgress.currentTitle}
+                </div>
+              )}
+              <p className="text-xs text-muted-foreground">Rate-limited to 1 request/second per MusicBrainz policy.</p>
+            </div>
+          )}
+          <DialogFooter>
+            {lookupProgress && lookupProgress.done < lookupProgress.total ? (
+              <Button variant="outline" onClick={cancelLookup}><X className="h-4 w-4" /> Cancel</Button>
+            ) : (
+              <Button onClick={() => setLookupOpen(false)}>Done</Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <footer className="border-t border-border mt-16">
         <div className="mx-auto max-w-7xl px-6 py-6 flex items-center justify-between text-xs text-muted-foreground font-mono">
           <span>SIFT · v0.1</span>
