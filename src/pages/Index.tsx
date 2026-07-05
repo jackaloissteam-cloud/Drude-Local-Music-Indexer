@@ -1,16 +1,18 @@
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { Library, Track, formatDuration, formatSize, isTrackComplete, proposedPath } from "@/lib/library";
 import { findDuplicates, pickBestOfGroup } from "@/lib/dedupe";
 import { SAMPLE_LIBRARY } from "@/lib/sample";
 import { loadLibrary, saveLibrary } from "@/lib/storage";
+import { lookupMissing, type LookupProgress } from "@/lib/musicbrainz";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Disc3, Upload, Download, Search, Trash2, Pencil, Copy, Fingerprint, FileMusic, AlertTriangle, Sparkles, FolderTree } from "lucide-react";
+import { Disc3, Upload, Download, Search, Trash2, Pencil, Copy, Fingerprint, FileMusic, AlertTriangle, Sparkles, FolderTree, Wand2, X } from "lucide-react";
 
 type Tab = "library" | "duplicates" | "import" | "schema";
 
