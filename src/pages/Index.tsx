@@ -1,16 +1,18 @@
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { Library, Track, formatDuration, formatSize, isTrackComplete, proposedPath } from "@/lib/library";
 import { findDuplicates, pickBestOfGroup } from "@/lib/dedupe";
 import { SAMPLE_LIBRARY } from "@/lib/sample";
 import { loadLibrary, saveLibrary } from "@/lib/storage";
+import { lookupMissing, type LookupProgress } from "@/lib/musicbrainz";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Disc3, Upload, Download, Search, Trash2, Pencil, Copy, Fingerprint, FileMusic, AlertTriangle, Sparkles, FolderTree } from "lucide-react";
+import { Disc3, Upload, Download, Search, Trash2, Pencil, Copy, Fingerprint, FileMusic, AlertTriangle, Sparkles, FolderTree, Wand2, X } from "lucide-react";
 
 type Tab = "library" | "duplicates" | "import" | "schema";
 
@@ -128,6 +130,39 @@ export default function Index() {
     toast.success(`Kept ${best.filename}, removed ${toRemove.length}`);
   };
 
+  const [lookupOpen, setLookupOpen] = useState(false);
+  const [lookupProgress, setLookupProgress] = useState<LookupProgress | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
+
+  const runLookup = async () => {
+    const targets = lib.tracks.filter((t) => !isTrackComplete(t));
+    if (targets.length === 0) {
+      toast.info("No tracks with missing tags.");
+      return;
+    }
+    const ctrl = new AbortController();
+    abortRef.current = ctrl;
+    setLookupOpen(true);
+    setLookupProgress({ done: 0, total: targets.length, updated: 0, failed: 0 });
+    try {
+      const patches = await lookupMissing(targets, setLookupProgress, 85, ctrl.signal);
+      setLib((l) => ({
+        ...l,
+        tracks: l.tracks.map((t) => (patches.has(t.id) ? { ...t, ...patches.get(t.id) } : t)),
+      }));
+      toast.success(`Updated ${patches.size} of ${targets.length} tracks from MusicBrainz`);
+    } catch (e) {
+      toast.error(`Lookup failed: ${(e as Error).message}`);
+    } finally {
+      abortRef.current = null;
+    }
+  };
+
+  const cancelLookup = () => {
+    abortRef.current?.abort();
+    abortRef.current = null;
+  };
+
   return (
     <div className="min-h-screen bg-background text-foreground">
       <header className="border-b border-border">
@@ -192,6 +227,14 @@ export default function Index() {
                   >
                     <AlertTriangle className="h-4 w-4" /> Missing tags only
                   </Button>
+                  <Button
+                    size="sm"
+                    onClick={runLookup}
+                    disabled={incompleteCount === 0}
+                    title="Query MusicBrainz for tracks with missing artist/title/album"
+                  >
+                    <Wand2 className="h-4 w-4" /> Fetch missing tags ({incompleteCount})
+                  </Button>
                   <Button variant="ghost" size="sm" onClick={clearAll} className="text-muted-foreground hover:text-destructive">
                     <Trash2 className="h-4 w-4" /> Clear
                   </Button>
@@ -224,6 +267,36 @@ export default function Index() {
       </main>
 
       <TagEditor track={editing} onClose={() => setEditing(null)} onSave={(patch) => { if (editing) updateTrack(editing.id, patch); setEditing(null); }} />
+
+      <Dialog open={lookupOpen} onOpenChange={(o) => { if (!o) { cancelLookup(); setLookupOpen(false); } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="font-serif flex items-center gap-2"><Wand2 className="h-5 w-5 text-primary" /> Fetching tags from MusicBrainz</DialogTitle>
+          </DialogHeader>
+          {lookupProgress && (
+            <div className="space-y-3">
+              <Progress value={lookupProgress.total ? (lookupProgress.done / lookupProgress.total) * 100 : 0} />
+              <div className="flex justify-between text-xs font-mono text-muted-foreground">
+                <span>{lookupProgress.done} / {lookupProgress.total}</span>
+                <span>updated {lookupProgress.updated} · failed {lookupProgress.failed}</span>
+              </div>
+              {lookupProgress.currentTitle && (
+                <div className="text-sm truncate">
+                  <span className="text-muted-foreground">Now: </span>{lookupProgress.currentTitle}
+                </div>
+              )}
+              <p className="text-xs text-muted-foreground">Rate-limited to 1 request/second per MusicBrainz policy.</p>
+            </div>
+          )}
+          <DialogFooter>
+            {lookupProgress && lookupProgress.done < lookupProgress.total ? (
+              <Button variant="outline" onClick={cancelLookup}><X className="h-4 w-4" /> Cancel</Button>
+            ) : (
+              <Button onClick={() => setLookupOpen(false)}>Done</Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <footer className="border-t border-border mt-16">
         <div className="mx-auto max-w-7xl px-6 py-6 flex items-center justify-between text-xs text-muted-foreground font-mono">
